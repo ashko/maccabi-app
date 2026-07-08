@@ -1,3 +1,10 @@
-streamlit
+# RideCoach scheduling engine
+ortools>=9.8
 requests
+
+# Test suite
+pytest
+
+# Existing Streamlit demo (app.py)
+streamlit
 pandas
