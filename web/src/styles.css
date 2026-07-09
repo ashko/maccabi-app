@@ -57,13 +57,21 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--tab-bg); backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
 }
-.brand { font-weight: 800; font-size: 1.12rem; display: flex; align-items: center; gap: 8px; }
+.brand { font-weight: 800; font-size: 1.12rem; display: flex; align-items: center; gap: 9px; }
 .logo { font-size: 1.25rem; }
+.brandpic { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--route); }
+.chev { color: var(--muted); font-size: 1.5rem; line-height: 1; flex: 0 0 auto; transform: scaleX(1); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 .syncbadge { font-size: .72rem; font-weight: 700; padding: 4px 9px; border-radius: 999px; }
 .syncbadge.synced { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
 .syncbadge.syncing { background: color-mix(in srgb, var(--route) 16%, transparent); color: var(--route-deep); }
 .syncbadge.error { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+
+/* coach profile card */
+.coachcard { display: flex; align-items: center; gap: 14px; }
+.coachpic { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid var(--route); flex: 0 0 auto; box-shadow: var(--shadow); }
+.coachname { font-weight: 800; font-size: 1.15rem; letter-spacing: -.2px; }
+.coachrole { color: var(--ink-soft); font-size: .86rem; margin-top: 2px; }
 
 /* cloud sync card */
 .cloud-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
@@ -245,7 +253,7 @@ select.input { background-image: none; }
     gap: 6px; width: 208px; border-top: 0; border-inline-start: 1px solid var(--line);
     padding: 22px 14px; order: 2;
   }
-  .tabbar::before { content: "🚴 RideCoach"; font-weight: 800; font-size: 1.15rem; padding: 6px 12px 18px; }
+  .tabbar::before { content: "GoldStandarts"; font-weight: 800; font-size: 1.15rem; padding: 6px 12px 18px; }
   .tab { flex-direction: row; justify-content: flex-start; gap: 12px; width: 100%; font-size: .95rem; padding: 11px 14px; border-radius: 12px; }
   .tab .ic { font-size: 1.2rem; }
   .tab.active { background: color-mix(in srgb, var(--route) 12%, transparent); }

@@ -96,7 +96,7 @@ export default function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <div className="brand"><span className="logo">🚴</span> RideCoach</div>
+        <div className="brand"><img className="brandpic" src="/coach.jpg" alt="" /> GoldStandarts</div>
         <div className="topbar-right">
           {sync !== 'off' && <span className={'syncbadge ' + sync}>{SYNC_LABEL[sync]}</span>}
           {installEvt && (
@@ -267,13 +267,19 @@ function Trainings({ db, commit }: { db: DB; commit: (d: DB) => void }) {
 }
 
 function FixedList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; trainees: Map<string, Trainee> }) {
+  const [editing, setEditing] = useState<Fixed | null>(null)
   const [adding, setAdding] = useState(false)
   if (db.trainees.length === 0) return <Empty text="הוסף מתאמנים תחילה" />
+  const save = (f: Fixed) => {
+    const exists = db.fixed.some(x => x.id === f.id)
+    commit({ ...db, fixed: exists ? db.fixed.map(x => (x.id === f.id ? f : x)) : [...db.fixed, f] })
+    setEditing(null); setAdding(false)
+  }
   return (
     <>
       <div className="list">
         {db.fixed.map(f => (
-          <div className="row card" key={f.id}>
+          <button className="row card" key={f.id} onClick={() => setEditing(f)}>
             <div className="grow">
               <div className="row-title">
                 {trainees.get(f.traineeId)?.name} · {f.label}
@@ -287,32 +293,34 @@ function FixedList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; 
                   : WEEKDAYS_HE[f.weekday]} {fmtHm(f.start)} · {f.duration} דק׳{f.isRemote ? ' · אונליין' : ''}
               </div>
             </div>
-            <button className="ghost sm" onClick={() => commit({ ...db, fixed: db.fixed.filter(x => x.id !== f.id) })}>🗑️</button>
-          </div>
+            <span className="chev">‹</span>
+          </button>
         ))}
         {db.fixed.length === 0 && <Empty text="אין אימונים קבועים" />}
       </div>
       <button className="primary block" onClick={() => setAdding(true)}>➕ אימון קבוע</button>
-      {adding && (
-        <FixedForm db={db} onClose={() => setAdding(false)} onSave={f => { commit({ ...db, fixed: [...db.fixed, f] }); setAdding(false) }} />
+      {(editing || adding) && (
+        <FixedForm db={db} initial={editing || undefined}
+          onClose={() => { setEditing(null); setAdding(false) }} onSave={save}
+          onDelete={editing ? () => { commit({ ...db, fixed: db.fixed.filter(x => x.id !== editing.id) }); setEditing(null) } : undefined} />
       )}
     </>
   )
 }
 
-function FixedForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSave: (f: Fixed) => void }) {
-  const [f, setF] = useState<Fixed>({
-    id: uid(), traineeId: db.trainees[0].id, label: 'כוח', category: 'physical',
-    duration: 60, weekday: 0, start: parseHm('09:00'), isRemote: false, recurrence: 'weekly',
-  })
-  const [date, setDate] = useState<string>(dateToISO(new Date()))
+function FixedForm({ db, initial, onClose, onSave, onDelete }:
+  { db: DB; initial?: Fixed; onClose: () => void; onSave: (f: Fixed) => void; onDelete?: () => void }) {
+  const [f, setF] = useState<Fixed>(initial
+    ? { ...initial, recurrence: initial.recurrence ?? 'weekly' }
+    : { id: uid(), traineeId: db.trainees[0].id, label: 'כוח', category: 'physical', duration: 60, weekday: 0, start: parseHm('09:00'), isRemote: false, recurrence: 'weekly' })
+  const [date, setDate] = useState<string>(initial?.date ?? dateToISO(new Date()))
   const once = f.recurrence === 'once'
   const save = () => onSave(once
     ? { ...f, recurrence: 'once', date, weekday: weekdayOfISO(date) }
     : { ...f, recurrence: 'weekly', date: undefined })
 
   return (
-    <Sheet title="אימון קבוע (יום ושעה ידועים)" onClose={onClose}>
+    <Sheet title={initial ? 'עריכת אימון קבוע' : 'אימון קבוע (יום ושעה ידועים)'} onClose={onClose}>
       <TraineePick db={db} value={f.traineeId} onChange={id => setF({ ...f, traineeId: id })} />
       <label className="lbl">שם האימון</label>
       <input className="input" value={f.label} onChange={e => setF({ ...f, label: e.target.value })} />
@@ -341,7 +349,10 @@ function FixedForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSav
       </div>
       <DurationRemote duration={f.duration} isRemote={f.isRemote}
         onDur={d => setF({ ...f, duration: d })} onRemote={r => setF({ ...f, isRemote: r })} />
-      <div className="actions"><button className="primary grow" onClick={save}>💾 הוסף</button></div>
+      <div className="actions">
+        {onDelete && <button className="danger" onClick={onDelete}>🗑️ מחק</button>}
+        <button className="primary grow" onClick={save}>💾 {initial ? 'שמור' : 'הוסף'}</button>
+      </div>
     </Sheet>
   )
 }
@@ -359,13 +370,19 @@ function RecurrencePick({ value, onChange }: { value: Recurrence; onChange: (r: 
 }
 
 function FlexList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; trainees: Map<string, Trainee> }) {
+  const [editing, setEditing] = useState<Flexible | null>(null)
   const [adding, setAdding] = useState(false)
   if (db.trainees.length === 0) return <Empty text="הוסף מתאמנים תחילה" />
+  const save = (r: Flexible) => {
+    const exists = db.flexible.some(x => x.id === r.id)
+    commit({ ...db, flexible: exists ? db.flexible.map(x => (x.id === r.id ? r : x)) : [...db.flexible, r] })
+    setEditing(null); setAdding(false)
+  }
   return (
     <>
       <div className="list">
         {db.flexible.map(r => (
-          <div className="row card" key={r.id}>
+          <button className="row card" key={r.id} onClick={() => setEditing(r)}>
             <div className="grow">
               <div className="row-title">
                 {trainees.get(r.traineeId)?.name} · {r.label}
@@ -376,27 +393,32 @@ function FlexList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; t
               <div className="row-sub">{catName(r.category)} · {r.duration} דק׳{r.isRemote ? ' · אונליין' : ''}</div>
               <div className="row-sub dim">{r.availability.map(w => `${WEEKDAYS_HE[w.weekday]} ${fmtHm(w.start)}-${fmtHm(w.end)}`).join(' · ')}</div>
             </div>
-            <button className="ghost sm" onClick={() => commit({ ...db, flexible: db.flexible.filter(x => x.id !== r.id) })}>🗑️</button>
-          </div>
+            <span className="chev">‹</span>
+          </button>
         ))}
         {db.flexible.length === 0 && <Empty text="אין אימונים משתנים" />}
       </div>
       <button className="primary block" onClick={() => setAdding(true)}>➕ אימון לשיבוץ</button>
-      {adding && (
-        <FlexForm db={db} onClose={() => setAdding(false)} onSave={r => { commit({ ...db, flexible: [...db.flexible, r] }); setAdding(false) }} />
+      {(editing || adding) && (
+        <FlexForm db={db} initial={editing || undefined}
+          onClose={() => { setEditing(null); setAdding(false) }} onSave={save}
+          onDelete={editing ? () => { commit({ ...db, flexible: db.flexible.filter(x => x.id !== editing.id) }); setEditing(null) } : undefined} />
       )}
     </>
   )
 }
 
-function FlexForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSave: (r: Flexible) => void }) {
-  const [r, setR] = useState<Flexible>({
-    id: uid(), traineeId: db.trainees[0].id, label: 'HIIT', category: 'physical',
-    duration: 45, isRemote: false, availability: [], recurrence: 'weekly',
+function FlexForm({ db, initial, onClose, onSave, onDelete }:
+  { db: DB; initial?: Flexible; onClose: () => void; onSave: (r: Flexible) => void; onDelete?: () => void }) {
+  const [r, setR] = useState<Flexible>(initial
+    ? { ...initial, recurrence: initial.recurrence ?? 'weekly' }
+    : { id: uid(), traineeId: db.trainees[0].id, label: 'HIIT', category: 'physical', duration: 45, isRemote: false, availability: [], recurrence: 'weekly' })
+  const [days, setDays] = useState<Record<number, { on: boolean; from: string; to: string }>>(() => {
+    const base = Object.fromEntries(WORK_DAYS.map(d => [d, { on: false, from: '08:00', to: '13:00' }])) as Record<number, { on: boolean; from: string; to: string }>
+    initial?.availability.forEach(w => { base[w.weekday] = { on: true, from: fmtHm(w.start), to: fmtHm(w.end) } })
+    return base
   })
-  const [days, setDays] = useState<Record<number, { on: boolean; from: string; to: string }>>(
-    Object.fromEntries(WORK_DAYS.map(d => [d, { on: false, from: '08:00', to: '13:00' }])))
-  const [targetWeek, setTargetWeek] = useState<string>(sundayOfISO(dateToISO(new Date())))
+  const [targetWeek, setTargetWeek] = useState<string>(initial?.targetWeek ?? sundayOfISO(dateToISO(new Date())))
   const once = r.recurrence === 'once'
 
   const build = () => {
@@ -441,7 +463,10 @@ function FlexForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSave
           </div>
         ))}
       </div>
-      <div className="actions"><button className="primary grow" disabled={!anyDay} onClick={build}>💾 הוסף</button></div>
+      <div className="actions">
+        {onDelete && <button className="danger" onClick={onDelete}>🗑️ מחק</button>}
+        <button className="primary grow" disabled={!anyDay} onClick={build}>💾 {initial ? 'שמור' : 'הוסף'}</button>
+      </div>
     </Sheet>
   )
 }
@@ -640,6 +665,14 @@ function Settings({ db, commit, setDb, sync, syncErr, onConnect, onDisconnect, o
   return (
     <section>
       <div className="view-head"><h2>הגדרות</h2></div>
+
+      <div className="card pad coachcard">
+        <img className="coachpic" src="/coach.jpg" alt="מאמן" />
+        <div>
+          <div className="coachname">GoldStandarts</div>
+          <div className="coachrole">אימון אישי · כושר ותזונה</div>
+        </div>
+      </div>
 
       <CloudCard sync={sync} syncErr={syncErr} onConnect={onConnect} onDisconnect={onDisconnect} onSyncNow={onSyncNow} />
 

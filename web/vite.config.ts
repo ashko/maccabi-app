@@ -13,8 +13,8 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
       },
       manifest: {
-        name: 'RideCoach — לוח אימונים',
-        short_name: 'RideCoach',
+        name: 'GoldStandarts — לוח אימונים',
+        short_name: 'GoldStandarts',
         description: 'שיבוץ אימונים שבועי, ניתוב אופניים ושליחת וואטסאפ',
         lang: 'he',
         dir: 'rtl',
