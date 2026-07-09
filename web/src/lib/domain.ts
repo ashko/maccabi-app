@@ -130,6 +130,11 @@ export const fmtDateHe = (iso: string): string => {
   const dt = isoToDate(iso)
   return `${dt.getDate()}/${dt.getMonth() + 1}`
 }
+export const fmtDur = (min: number): string => {
+  const h = Math.floor(min / 60), m = min % 60
+  if (h === 0) return `${m} דק׳`
+  return m ? `${h} שע׳ ${m} דק׳` : `${h} שע׳`
+}
 
 // ---- seed roster (Tel Aviv) shown on first run ---------------------------- //
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import AddressSearch from './components/AddressSearch'
 import {
   CATEGORY_HE, Category, DB, Fixed, Flexible, Loc, Recurrence, Scheduled, Trainee,
-  WEEKDAYS_HE, WORK_DAYS, addDaysISO, dateToISO, fmtDateHe, fmtHm, parseHm, sundayOfISO, uid, weekdayOfISO,
+  WEEKDAYS_HE, WORK_DAYS, addDaysISO, dateToISO, fmtDateHe, fmtDur, fmtHm, parseHm, sundayOfISO, uid, weekdayOfISO,
 } from './lib/domain'
 import { loadDB, resetDB, saveDB } from './lib/store'
 import { buildPlan } from './lib/scheduler'
@@ -539,6 +539,9 @@ function PlanView({ db, commit, week, setWeek }: { db: DB; commit: (d: DB) => vo
   const activeDays = WORK_DAYS.filter(d => byDay[d]?.length)
   const shownDay = mapDay != null && activeDays.includes(mapDay) ? mapDay : activeDays[0]
   const mapStops = shownDay != null ? (byDay[shownDay] || []).filter(s => !s.isRemote && s.loc) : []
+  const sess = plan?.sessions ?? []
+  const onlineMin = sess.filter(s => s.isRemote).reduce((a, s) => a + (s.end - s.start), 0)
+  const physMin = sess.filter(s => !s.isRemote).reduce((a, s) => a + (s.end - s.start), 0)
 
   return (
     <section>
@@ -571,6 +574,14 @@ function PlanView({ db, commit, week, setWeek }: { db: DB; commit: (d: DB) => vo
             <Metric v={plan.totalKm.toFixed(1)} u="ק״מ בשבוע" />
             <Metric v={`${plan.totalRide}`} u="דק׳ רכיבה" />
             <Metric v={`${plan.sessions.length}`} u="אימונים" />
+          </div>
+
+          <div className="card pad hours">
+            <div className="hours-total">🏋️ סה״כ אימון השבוע: <b>{fmtDur(physMin + onlineMin)}</b></div>
+            <div className="hours-split">
+              <span className="hchip phys">🚴 פיזי · {fmtDur(physMin)}</span>
+              <span className="hchip online">💻 אונליין · {fmtDur(onlineMin)}</span>
+            </div>
           </div>
 
           {plan.unscheduled.length > 0 && (
