@@ -4,8 +4,13 @@
   command = "npm run build"
   publish = "dist"
 
-# SPA fallback so any path serves the app shell.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# SPA fallback so any client path serves the app shell (API routes excluded).
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  force = false

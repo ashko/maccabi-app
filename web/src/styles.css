@@ -59,6 +59,18 @@ button { font-family: inherit; cursor: pointer; }
 }
 .brand { font-weight: 800; font-size: 1.12rem; display: flex; align-items: center; gap: 8px; }
 .logo { font-size: 1.25rem; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.syncbadge { font-size: .72rem; font-weight: 700; padding: 4px 9px; border-radius: 999px; }
+.syncbadge.synced { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.syncbadge.syncing { background: color-mix(in srgb, var(--route) 16%, transparent); color: var(--route-deep); }
+.syncbadge.error { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+
+/* cloud sync card */
+.cloud-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.cloud .dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
+.cloud .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent); }
+.cloud .dot.err { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 22%, transparent); }
+.cloud .dot.off { background: var(--muted); }
 .content {
   flex: 1; width: 100%; max-width: 760px; margin: 0 auto;
   padding: 16px 16px calc(96px + var(--safe-b));
@@ -143,6 +155,7 @@ select.input { background-image: none; }
 .seg.small { margin: 6px 0 0; }
 .seg button { flex: 1; border: 0; background: transparent; color: var(--ink-soft); padding: 9px; border-radius: 9px; font-weight: 700; font-size: .9rem; }
 .seg button.on { background: var(--card); color: var(--route-deep); box-shadow: var(--shadow); }
+.seg-hint { color: var(--ink-soft); font-size: .84rem; margin: -6px 2px 14px; line-height: 1.5; }
 
 /* ---- address autocomplete ---- */
 .addr { position: relative; }
@@ -197,6 +210,17 @@ select.input { background-image: none; }
 .slot-time { flex: 0 0 auto; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; font-size: .9rem; line-height: 1.15; }
 .slot-time span { display: block; color: var(--muted); font-weight: 500; font-size: .76rem; }
 .ride { flex: 0 0 auto; font-size: .82rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+/* ---- route map ---- */
+.daychips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; }
+.daychip { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: .85rem; }
+.daychip.on { background: var(--route-deep); color: #fff; border-color: var(--route-deep); }
+.routemap { height: 300px; width: 100%; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); z-index: 0; }
+.routemap .leaflet-container { height: 100%; width: 100%; font-family: var(--font); background: var(--paper); }
+.mk { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-weight: 800; font-size: .85rem; color: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); border: 2px solid #fff; }
+.mk-stop { background: var(--route-deep); }
+.mk-home { background: var(--energy); font-size: 1rem; }
+.map-note { color: var(--muted); font-size: .82rem; text-align: center; padding: 24px; }
 
 /* ---- send ---- */
 .send-card { padding: 14px; display: flex; flex-direction: column; gap: 10px; }

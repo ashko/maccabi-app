@@ -69,6 +69,7 @@ export interface DB {
   trainees: Trainee[]
   fixed: Fixed[]
   flexible: Flexible[]
+  updatedAt?: number   // epoch ms of last edit — used to reconcile cloud vs local
 }
 
 export const WEEKDAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']

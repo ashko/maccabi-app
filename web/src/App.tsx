@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import AddressSearch from './components/AddressSearch'
 import {
   CATEGORY_HE, Category, DB, Fixed, Flexible, Loc, Plan, Scheduled, Trainee,
@@ -7,8 +7,11 @@ import {
 import { loadDB, resetDB, saveDB } from './lib/store'
 import { buildPlan } from './lib/scheduler'
 import { renderMessage, waLink } from './lib/whatsapp'
+import { cloudEnabled, cloudLoad, cloudSave, getWsKey, setWsKey } from './lib/cloud'
+import RouteMap from './components/RouteMap'
 
 type View = 'people' | 'trainings' | 'plan' | 'send' | 'settings'
+type SyncStatus = 'off' | 'syncing' | 'synced' | 'error'
 
 const NAV: { id: View; label: string; icon: string }[] = [
   { id: 'people', label: 'מתאמנים', icon: '👥' },
@@ -18,13 +21,49 @@ const NAV: { id: View; label: string; icon: string }[] = [
   { id: 'settings', label: 'הגדרות', icon: '⚙️' },
 ]
 
+const SYNC_LABEL: Record<SyncStatus, string> = {
+  off: '', syncing: 'מסנכרן…', synced: 'ענן ✓', error: 'שגיאת ענן',
+}
+
 export default function App() {
   const [db, setDb] = useState<DB>(() => loadDB())
   const [view, setView] = useState<View>('people')
   const [plan, setPlan] = useState<Plan | null>(null)
   const [installEvt, setInstallEvt] = useState<any>(null)
+  const [sync, setSync] = useState<SyncStatus>(cloudEnabled() ? 'syncing' : 'off')
+  const pushTimer = useRef<any>(null)
 
-  const commit = (next: DB) => { saveDB(next); setDb({ ...next }) }
+  const pushCloud = (next: DB) => {
+    if (!cloudEnabled()) return
+    clearTimeout(pushTimer.current)
+    setSync('syncing')
+    pushTimer.current = setTimeout(async () => {
+      try { await cloudSave(next); setSync('synced') } catch { setSync('error') }
+    }, 800)
+  }
+
+  const commit = (next: DB) => {
+    next.updatedAt = Date.now()
+    saveDB(next); setDb({ ...next }); pushCloud(next)
+  }
+
+  // reconcile local vs cloud on first load — newer wins
+  useEffect(() => {
+    if (!cloudEnabled()) return
+    ;(async () => {
+      try {
+        const remote = await cloudLoad()
+        const local = loadDB()
+        if (remote && (remote.updatedAt || 0) >= (local.updatedAt || 0)) {
+          saveDB(remote); setDb(remote)
+        } else {
+          const seed = { ...local, updatedAt: local.updatedAt ?? Date.now() }
+          await cloudSave(seed)
+        }
+        setSync('synced')
+      } catch { setSync('error') }
+    })()
+  }, [])
 
   useEffect(() => {
     const h = (e: any) => { e.preventDefault(); setInstallEvt(e) }
@@ -32,15 +71,36 @@ export default function App() {
     return () => window.removeEventListener('beforeinstallprompt', h)
   }, [])
 
+  const connectCloud = async (key: string) => {
+    setWsKey(key.trim())
+    if (!cloudEnabled()) { setSync('off'); return false }
+    setSync('syncing')
+    try {
+      const remote = await cloudLoad()
+      if (remote) { saveDB(remote); setDb(remote) }
+      else { const seed = { ...db, updatedAt: Date.now() }; await cloudSave(seed); saveDB(seed); setDb(seed) }
+      setSync('synced'); return true
+    } catch { setSync('error'); return false }
+  }
+  const disconnectCloud = () => { setWsKey(''); setSync('off') }
+  const syncNow = async () => {
+    if (!cloudEnabled()) return
+    setSync('syncing')
+    try { const r = await cloudLoad(); if (r) { saveDB(r); setDb(r) } setSync('synced') } catch { setSync('error') }
+  }
+
   return (
     <div className="shell">
       <header className="topbar">
         <div className="brand"><span className="logo">🚴</span> RideCoach</div>
-        {installEvt && (
-          <button className="ghost sm" onClick={async () => { installEvt.prompt(); setInstallEvt(null) }}>
-            התקן לאפליקציה
-          </button>
-        )}
+        <div className="topbar-right">
+          {sync !== 'off' && <span className={'syncbadge ' + sync}>{SYNC_LABEL[sync]}</span>}
+          {installEvt && (
+            <button className="ghost sm" onClick={async () => { installEvt.prompt(); setInstallEvt(null) }}>
+              התקן
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="content">
@@ -48,7 +108,10 @@ export default function App() {
         {view === 'trainings' && <Trainings db={db} commit={commit} />}
         {view === 'plan' && <PlanView db={db} plan={plan} setPlan={setPlan} />}
         {view === 'send' && <SendView db={db} plan={plan} />}
-        {view === 'settings' && <Settings db={db} commit={commit} setDb={setDb} />}
+        {view === 'settings' && (
+          <Settings db={db} commit={commit} setDb={setDb}
+            sync={sync} onConnect={connectCloud} onDisconnect={disconnectCloud} onSyncNow={syncNow} />
+        )}
       </main>
 
       <nav className="tabbar">
@@ -185,8 +248,13 @@ function Trainings({ db, commit }: { db: DB; commit: (d: DB) => void }) {
       <div className="view-head"><h2>אימונים</h2></div>
       <div className="seg">
         <button className={seg === 'fixed' ? 'on' : ''} onClick={() => setSeg('fixed')}>קבועים</button>
-        <button className={seg === 'flex' ? 'on' : ''} onClick={() => setSeg('flex')}>שבועיים</button>
+        <button className={seg === 'flex' ? 'on' : ''} onClick={() => setSeg('flex')}>משתנים</button>
       </div>
+      <p className="seg-hint">
+        {seg === 'fixed'
+          ? 'יום ושעה קבועים שחוזרים כל שבוע — המערכת פשוט משבצת אותם כמו שהם.'
+          : 'בלי יום/שעה קבועים. אתה מזין חלונות זמינות, והמערכת בוחרת את הזמן שהכי מקצר את הרכיבה.'}
+      </p>
       {seg === 'fixed'
         ? <FixedList db={db} commit={commit} trainees={trainees} />
         : <FlexList db={db} commit={commit} trainees={trainees} />}
@@ -265,9 +333,9 @@ function FlexList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; t
             <button className="ghost sm" onClick={() => commit({ ...db, flexible: db.flexible.filter(x => x.id !== r.id) })}>🗑️</button>
           </div>
         ))}
-        {db.flexible.length === 0 && <Empty text="אין בקשות שבועיות" />}
+        {db.flexible.length === 0 && <Empty text="אין אימונים משתנים" />}
       </div>
-      <button className="primary block" onClick={() => setAdding(true)}>➕ בקשה שבועית</button>
+      <button className="primary block" onClick={() => setAdding(true)}>➕ אימון לשיבוץ</button>
       {adding && (
         <FlexForm db={db} onClose={() => setAdding(false)} onSave={r => { commit({ ...db, flexible: [...db.flexible, r] }); setAdding(false) }} />
       )}
@@ -291,7 +359,7 @@ function FlexForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSave
   const anyDay = WORK_DAYS.some(d => days[d].on)
 
   return (
-    <Sheet title="בקשה שבועית" onClose={onClose}>
+    <Sheet title="אימון משתנה — לשיבוץ אוטומטי" onClose={onClose}>
       <TraineePick db={db} value={r.traineeId} onChange={id => setR({ ...r, traineeId: id })} />
       <label className="lbl">שם האימון</label>
       <input className="input" value={r.label} onChange={e => setR({ ...r, label: e.target.value })} />
@@ -374,6 +442,7 @@ function nextSundayISO(): string {
 
 function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (p: Plan) => void }) {
   const [week, setWeek] = useState<string>(nextSundayISO())
+  const [mapDay, setMapDay] = useState<number | null>(null)
   const trainees = useTrainees(db)
   const byDay = useMemo(() => {
     const m: Record<number, Scheduled[]> = {}
@@ -381,6 +450,9 @@ function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (
     Object.values(m).forEach(l => l.sort((a, b) => a.start - b.start))
     return m
   }, [plan])
+  const activeDays = WORK_DAYS.filter(d => byDay[d]?.length)
+  const shownDay = mapDay != null && activeDays.includes(mapDay) ? mapDay : activeDays[0]
+  const mapStops = shownDay != null ? (byDay[shownDay] || []).filter(s => !s.isRemote && s.loc) : []
 
   return (
     <section>
@@ -405,7 +477,22 @@ function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (
             </div>
           )}
 
-          {WORK_DAYS.filter(d => byDay[d]?.length).map(d => (
+          {activeDays.length > 0 && (
+            <div className="card pad" style={{ marginBottom: 12 }}>
+              <div className="daychips">
+                {activeDays.map(d => (
+                  <button key={d} className={'daychip' + (d === shownDay ? ' on' : '')} onClick={() => setMapDay(d)}>
+                    {WEEKDAYS_HE[d]}
+                  </button>
+                ))}
+              </div>
+              {mapStops.length > 0
+                ? <RouteMap home={db.trainer.home} stops={mapStops} />
+                : <div className="map-note">כל האימונים ביום {WEEKDAYS_HE[shownDay!]} הם אונליין — אין מסלול רכיבה 💻</div>}
+            </div>
+          )}
+
+          {activeDays.map(d => (
             <div className="day card" key={d}>
               <div className="day-head">יום {WEEKDAYS_HE[d]}</div>
               {byDay[d].map((s, i) => (
@@ -481,7 +568,11 @@ function SendView({ db, plan }: { db: DB; plan: Plan | null }) {
 //  Settings
 // --------------------------------------------------------------------------- //
 
-function Settings({ db, commit, setDb }: { db: DB; commit: (d: DB) => void; setDb: (d: DB) => void }) {
+function Settings({ db, commit, setDb, sync, onConnect, onDisconnect, onSyncNow }:
+  {
+    db: DB; commit: (d: DB) => void; setDb: (d: DB) => void
+    sync: SyncStatus; onConnect: (k: string) => Promise<boolean>; onDisconnect: () => void; onSyncNow: () => void
+  }) {
   const tr = db.trainer
   const setHours = (d: number, on: boolean, from?: string, to?: string) => {
     const wh = { ...tr.workHours }
@@ -492,6 +583,8 @@ function Settings({ db, commit, setDb }: { db: DB; commit: (d: DB) => void; setD
   return (
     <section>
       <div className="view-head"><h2>הגדרות</h2></div>
+
+      <CloudCard sync={sync} onConnect={onConnect} onDisconnect={onDisconnect} onSyncNow={onSyncNow} />
 
       <div className="card pad">
         <label className="lbl">כתובת הבית (נקודת מוצא לרכיבה)</label>
@@ -546,8 +639,47 @@ function Settings({ db, commit, setDb }: { db: DB; commit: (d: DB) => void; setD
       <button className="danger block" onClick={() => { if (confirm('לאפס לנתוני הדוגמה? כל השינויים יימחקו.')) setDb(resetDB()) }}>
         איפוס לנתוני דוגמה
       </button>
-      <p className="hint center">הנתונים נשמרים במכשיר שלך בלבד. פרטי וחינמי.</p>
     </section>
+  )
+}
+
+function CloudCard({ sync, onConnect, onDisconnect, onSyncNow }:
+  { sync: SyncStatus; onConnect: (k: string) => Promise<boolean>; onDisconnect: () => void; onSyncNow: () => void }) {
+  const connected = getWsKey().length >= 8
+  const [key, setKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const dot = connected ? (sync === 'error' ? 'err' : 'ok') : 'off'
+  const status = !connected ? 'לא מחובר — הנתונים במכשיר בלבד'
+    : sync === 'error' ? 'שגיאת סנכרון — בדוק חיבור'
+      : sync === 'syncing' ? 'מסנכרן…' : 'מסונכרן בענן ✓'
+
+  return (
+    <div className="card pad cloud">
+      <div className="cloud-head">
+        <span className={'dot ' + dot} />
+        <div className="grow">
+          <div className="row-title">סנכרון ענן</div>
+          <div className="row-sub">{status}</div>
+        </div>
+      </div>
+      {!connected ? (
+        <>
+          <label className="lbl">מפתח אישי (משפט סיסמה, לפחות 8 תווים)</label>
+          <input className="input" value={key} onChange={e => setKey(e.target.value)}
+            placeholder="למשל: הכלב-שלי-רץ-מהר-2026" autoComplete="off" />
+          <button className="primary block" disabled={key.trim().length < 8 || busy}
+            onClick={async () => { setBusy(true); await onConnect(key); setBusy(false); setKey('') }}>
+            {busy ? 'מתחבר…' : '☁️ חבר לענן'}
+          </button>
+          <p className="hint">אותו מפתח בכל מכשיר = אותם נתונים. שמור אותו — הוא הדרך היחידה לגשת לנתונים שלך.</p>
+        </>
+      ) : (
+        <div className="actions">
+          <button className="ghost grow" onClick={onSyncNow}>🔄 סנכרן עכשיו</button>
+          <button className="danger" onClick={() => { if (confirm('לנתק סנכרון ענן במכשיר זה? הנתונים יישארו בענן ובמכשיר.')) onDisconnect() }}>נתק</button>
+        </div>
+      )}
+    </div>
   )
 }
 
