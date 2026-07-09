@@ -8,18 +8,23 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createHash } from 'node:crypto'
-import { kv } from '@vercel/kv'
+import { createClient } from '@vercel/kv'
 
 const MAX_BYTES = 512 * 1024
 const MIN_KEY = 8
 
-const isConfigured = () => !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
+// Accept whichever names the connected store injects (classic Vercel KV or the
+// newer Upstash Redis marketplace integration).
+const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || ''
+const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || ''
+const isConfigured = () => !!(KV_URL && KV_TOKEN)
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const key = (req.headers['x-workspace-key'] as string) || ''
   if (key.length < MIN_KEY) return res.status(400).json({ error: 'workspace key too short' })
   if (!isConfigured()) return res.status(501).json({ error: 'cloud storage not configured' })
 
+  const kv = createClient({ url: KV_URL, token: KV_TOKEN })
   const id = 'ridecoach:' + createHash('sha256').update('ridecoach:' + key).digest('hex')
 
   try {
