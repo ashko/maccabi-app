@@ -8,6 +8,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      workbox: {
+        // never let the service worker intercept the cloud API — always network
+        navigateFallbackDenylist: [/^\/api\//],
+      },
       manifest: {
         name: 'RideCoach — לוח אימונים',
         short_name: 'RideCoach',

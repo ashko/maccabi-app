@@ -31,14 +31,18 @@ export default function App() {
   const [plan, setPlan] = useState<Plan | null>(null)
   const [installEvt, setInstallEvt] = useState<any>(null)
   const [sync, setSync] = useState<SyncStatus>(cloudEnabled() ? 'syncing' : 'off')
+  const [syncErr, setSyncErr] = useState('')
   const pushTimer = useRef<any>(null)
+
+  const fail = (e: any) => { setSync('error'); setSyncErr(String(e?.message || e)) }
+  const ok = () => { setSync('synced'); setSyncErr('') }
 
   const pushCloud = (next: DB) => {
     if (!cloudEnabled()) return
     clearTimeout(pushTimer.current)
     setSync('syncing')
     pushTimer.current = setTimeout(async () => {
-      try { await cloudSave(next); setSync('synced') } catch { setSync('error') }
+      try { await cloudSave(next); ok() } catch (e) { fail(e) }
     }, 800)
   }
 
@@ -60,8 +64,8 @@ export default function App() {
           const seed = { ...local, updatedAt: local.updatedAt ?? Date.now() }
           await cloudSave(seed)
         }
-        setSync('synced')
-      } catch { setSync('error') }
+        ok()
+      } catch (e) { fail(e) }
     })()
   }, [])
 
@@ -79,14 +83,14 @@ export default function App() {
       const remote = await cloudLoad()
       if (remote) { saveDB(remote); setDb(remote) }
       else { const seed = { ...db, updatedAt: Date.now() }; await cloudSave(seed); saveDB(seed); setDb(seed) }
-      setSync('synced'); return true
-    } catch { setSync('error'); return false }
+      ok(); return true
+    } catch (e) { fail(e); return false }
   }
-  const disconnectCloud = () => { setWsKey(''); setSync('off') }
+  const disconnectCloud = () => { setWsKey(''); setSync('off'); setSyncErr('') }
   const syncNow = async () => {
     if (!cloudEnabled()) return
     setSync('syncing')
-    try { const r = await cloudLoad(); if (r) { saveDB(r); setDb(r) } setSync('synced') } catch { setSync('error') }
+    try { const r = await cloudLoad(); if (r) { saveDB(r); setDb(r) } ok() } catch (e) { fail(e) }
   }
 
   return (
@@ -110,7 +114,7 @@ export default function App() {
         {view === 'send' && <SendView db={db} plan={plan} />}
         {view === 'settings' && (
           <Settings db={db} commit={commit} setDb={setDb}
-            sync={sync} onConnect={connectCloud} onDisconnect={disconnectCloud} onSyncNow={syncNow} />
+            sync={sync} syncErr={syncErr} onConnect={connectCloud} onDisconnect={disconnectCloud} onSyncNow={syncNow} />
         )}
       </main>
 
@@ -621,10 +625,10 @@ function SendView({ db, plan }: { db: DB; plan: Plan | null }) {
 //  Settings
 // --------------------------------------------------------------------------- //
 
-function Settings({ db, commit, setDb, sync, onConnect, onDisconnect, onSyncNow }:
+function Settings({ db, commit, setDb, sync, syncErr, onConnect, onDisconnect, onSyncNow }:
   {
     db: DB; commit: (d: DB) => void; setDb: (d: DB) => void
-    sync: SyncStatus; onConnect: (k: string) => Promise<boolean>; onDisconnect: () => void; onSyncNow: () => void
+    sync: SyncStatus; syncErr: string; onConnect: (k: string) => Promise<boolean>; onDisconnect: () => void; onSyncNow: () => void
   }) {
   const tr = db.trainer
   const setHours = (d: number, on: boolean, from?: string, to?: string) => {
@@ -637,7 +641,7 @@ function Settings({ db, commit, setDb, sync, onConnect, onDisconnect, onSyncNow 
     <section>
       <div className="view-head"><h2>הגדרות</h2></div>
 
-      <CloudCard sync={sync} onConnect={onConnect} onDisconnect={onDisconnect} onSyncNow={onSyncNow} />
+      <CloudCard sync={sync} syncErr={syncErr} onConnect={onConnect} onDisconnect={onDisconnect} onSyncNow={onSyncNow} />
 
       <div className="card pad">
         <label className="lbl">כתובת הבית (נקודת מוצא לרכיבה)</label>
@@ -696,14 +700,14 @@ function Settings({ db, commit, setDb, sync, onConnect, onDisconnect, onSyncNow 
   )
 }
 
-function CloudCard({ sync, onConnect, onDisconnect, onSyncNow }:
-  { sync: SyncStatus; onConnect: (k: string) => Promise<boolean>; onDisconnect: () => void; onSyncNow: () => void }) {
+function CloudCard({ sync, syncErr, onConnect, onDisconnect, onSyncNow }:
+  { sync: SyncStatus; syncErr: string; onConnect: (k: string) => Promise<boolean>; onDisconnect: () => void; onSyncNow: () => void }) {
   const connected = getWsKey().length >= 8
   const [key, setKey] = useState('')
   const [busy, setBusy] = useState(false)
   const dot = connected ? (sync === 'error' ? 'err' : 'ok') : 'off'
   const status = !connected ? 'לא מחובר — הנתונים במכשיר בלבד'
-    : sync === 'error' ? 'שגיאת סנכרון — ודא שהענן (Vercel KV) מחובר לפרויקט'
+    : sync === 'error' ? 'שגיאת סנכרון'
       : sync === 'syncing' ? 'מסנכרן…' : 'מסונכרן בענן ✓'
 
   return (
@@ -715,6 +719,7 @@ function CloudCard({ sync, onConnect, onDisconnect, onSyncNow }:
           <div className="row-sub">{status}</div>
         </div>
       </div>
+      {sync === 'error' && syncErr && <div className="alert" style={{ margin: '4px 0 10px' }}>⚠️ {syncErr}</div>}
       {!connected ? (
         <>
           <label className="lbl">מפתח אישי (משפט סיסמה, לפחות 8 תווים)</label>
