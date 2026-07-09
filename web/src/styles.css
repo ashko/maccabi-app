@@ -232,6 +232,9 @@ select.input { background-image: none; }
 .hchip { font-size: .86rem; font-weight: 700; padding: 7px 12px; border-radius: 999px; }
 .hchip.phys { background: color-mix(in srgb, var(--route) 16%, transparent); color: var(--route-deep); }
 .hchip.online { background: color-mix(in srgb, var(--energy) 20%, transparent); color: var(--warn, #C4791B); }
+.hchip.gym { background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); }
+.hchip.nutri { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.hlabel { font-size: .72rem; font-weight: 700; color: var(--muted); margin: 12px 2px 6px; letter-spacing: .3px; }
 
 /* ---- week navigation ---- */
 .weeknav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }

@@ -540,8 +540,11 @@ function PlanView({ db, commit, week, setWeek }: { db: DB; commit: (d: DB) => vo
   const shownDay = mapDay != null && activeDays.includes(mapDay) ? mapDay : activeDays[0]
   const mapStops = shownDay != null ? (byDay[shownDay] || []).filter(s => !s.isRemote && s.loc) : []
   const sess = plan?.sessions ?? []
-  const onlineMin = sess.filter(s => s.isRemote).reduce((a, s) => a + (s.end - s.start), 0)
-  const physMin = sess.filter(s => !s.isRemote).reduce((a, s) => a + (s.end - s.start), 0)
+  const dur = (arr: typeof sess) => arr.reduce((a, s) => a + (s.end - s.start), 0)
+  const onlineMin = dur(sess.filter(s => s.isRemote))
+  const physMin = dur(sess.filter(s => !s.isRemote))
+  const gymMin = dur(sess.filter(s => s.category === 'physical'))
+  const nutriMin = dur(sess.filter(s => s.category === 'nutrition'))
 
   return (
     <section>
@@ -556,6 +559,13 @@ function PlanView({ db, commit, week, setWeek }: { db: DB; commit: (d: DB) => vo
         <button className="primary block" onClick={() => commit({ ...db, plans: { ...db.plans, [week]: buildPlan(db, week) } })}>
           {plan ? '🔄 בנה מחדש' : '🧮 בנה לו״ז'}
         </button>
+        {plan && (
+          <button className="ghost sm block" onClick={() => {
+            if (confirm(`למחוק את הלו״ז של שבוע ${fmtDateHe(week)}–${fmtDateHe(addDaysISO(week, 6))}?`)) {
+              const plans = { ...db.plans }; delete plans[week]; commit({ ...db, plans })
+            }
+          }}>🗑️ מחק לו״ז זה</button>
+        )}
         {savedWeeks.length > 0 && (
           <>
             <label className="lbl">לו״זים שמורים</label>
@@ -578,9 +588,15 @@ function PlanView({ db, commit, week, setWeek }: { db: DB; commit: (d: DB) => vo
 
           <div className="card pad hours">
             <div className="hours-total">🏋️ סה״כ אימון השבוע: <b>{fmtDur(physMin + onlineMin)}</b></div>
+            <div className="hlabel">לפי הגעה</div>
             <div className="hours-split">
               <span className="hchip phys">🚴 פיזי · {fmtDur(physMin)}</span>
               <span className="hchip online">💻 אונליין · {fmtDur(onlineMin)}</span>
+            </div>
+            <div className="hlabel">לפי תחום</div>
+            <div className="hours-split">
+              <span className="hchip gym">🏋️ גופני · {fmtDur(gymMin)}</span>
+              <span className="hchip nutri">🥗 תזונה · {fmtDur(nutriMin)}</span>
             </div>
           </div>
 
