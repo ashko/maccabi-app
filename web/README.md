@@ -20,8 +20,16 @@ npm run preview    # תצוגה מקדימה של הבנייה
 | חיפוש כתובת עם השלמה | Photon (Komoot) — ללא מפתח, ללא קואורדינטות ידניות |
 | אופטימיזציית מסלול | מחושבת במכשיר (הערכת זמן רכיבה) — ללא שרת |
 | שליחת וואטסאפ | קישורי `wa.me` שפותחים את האפליקציה עם ההודעה מוכנה — ללא Business API |
-| אחסון נתונים | `localStorage` — במכשיר בלבד, פרטי |
-| אירוח | Netlify (Free) — ראו `netlify.toml` בשורש |
+| אחסון נתונים | `localStorage` במכשיר + סנכרון ענן אופציונלי (Vercel KV) |
+| אירוח | Vercel (Free) — ראו `vercel.json`; Root Directory = `web` |
+
+## פריסה ל-Vercel
+
+1. ב-vercel.com → **Add New → Project** → יבוא של `ashko/maccabi-app`.
+2. **Root Directory** = `web` (Vercel יזהה Vite אוטומטית).
+3. Deploy. האפליקציה עובדת מיד עם אחסון מקומי.
+4. לסנכרון ענן: **Storage → Create → KV** וחבר לפרויקט (מזריק אוטומטית
+   `KV_REST_API_URL` / `KV_REST_API_TOKEN`). ה-endpoint `/api/data` יתחיל לעבוד.
 
 ## מבנה
 

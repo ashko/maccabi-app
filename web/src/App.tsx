@@ -703,7 +703,7 @@ function CloudCard({ sync, onConnect, onDisconnect, onSyncNow }:
   const [busy, setBusy] = useState(false)
   const dot = connected ? (sync === 'error' ? 'err' : 'ok') : 'off'
   const status = !connected ? 'לא מחובר — הנתונים במכשיר בלבד'
-    : sync === 'error' ? 'שגיאת סנכרון — בדוק חיבור'
+    : sync === 'error' ? 'שגיאת סנכרון — ודא שהענן (Vercel KV) מחובר לפרויקט'
       : sync === 'syncing' ? 'מסנכרן…' : 'מסונכרן בענן ✓'
 
   return (
