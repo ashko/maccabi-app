@@ -1,7 +1,7 @@
 // Client side of cloud sync. The "workspace key" is a passphrase the trainer
 // picks; it both authenticates and namespaces their data on the server. Same key
 // on any device => same roster. Stored locally so they stay signed in.
-import { DB } from './domain'
+import { DB, migrateDB } from './domain'
 
 const WSKEY = 'ridecoach.wskey'
 const API = '/api/data'
@@ -29,7 +29,7 @@ export async function cloudLoad(): Promise<DB | null> {
   if (!res.ok) throw new Error(await detail(res))
   const txt = (await res.text()).trim()
   if (!txt || txt === 'null') return null
-  try { return JSON.parse(txt) as DB } catch { return null }
+  try { return migrateDB(JSON.parse(txt) as DB) } catch { return null }
 }
 
 export async function cloudSave(db: DB): Promise<void> {

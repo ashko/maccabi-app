@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AddressSearch from './components/AddressSearch'
 import {
-  CATEGORY_HE, Category, DB, Fixed, Flexible, Loc, Plan, Recurrence, Scheduled, Trainee,
-  WEEKDAYS_HE, WORK_DAYS, dateToISO, fmtDateHe, fmtHm, parseHm, sundayOfISO, uid, weekdayOfISO,
+  CATEGORY_HE, Category, DB, Fixed, Flexible, Loc, Recurrence, Scheduled, Trainee,
+  WEEKDAYS_HE, WORK_DAYS, addDaysISO, dateToISO, fmtDateHe, fmtHm, parseHm, sundayOfISO, uid, weekdayOfISO,
 } from './lib/domain'
 import { loadDB, resetDB, saveDB } from './lib/store'
 import { buildPlan } from './lib/scheduler'
@@ -29,6 +29,10 @@ export default function App() {
   const [db, setDb] = useState<DB>(() => loadDB())
   const [view, setView] = useState<View>('people')
   const [installEvt, setInstallEvt] = useState<any>(null)
+  const [week, setWeek] = useState<string>(() => {
+    const keys = Object.keys(db.plans ?? {}).sort()
+    return keys.length ? keys[keys.length - 1] : nextSundayISO()
+  })
   const [sync, setSync] = useState<SyncStatus>(cloudEnabled() ? 'syncing' : 'off')
   const [syncErr, setSyncErr] = useState('')
   const pushTimer = useRef<any>(null)
@@ -109,8 +113,8 @@ export default function App() {
       <main className="content">
         {view === 'people' && <People db={db} commit={commit} />}
         {view === 'trainings' && <Trainings db={db} commit={commit} />}
-        {view === 'plan' && <PlanView db={db} commit={commit} />}
-        {view === 'send' && <SendView db={db} />}
+        {view === 'plan' && <PlanView db={db} commit={commit} week={week} setWeek={setWeek} />}
+        {view === 'send' && <SendView db={db} week={week} />}
         {view === 'settings' && (
           <Settings db={db} commit={commit} setDb={setDb}
             sync={sync} syncErr={syncErr} onConnect={connectCloud} onDisconnect={disconnectCloud} onSyncNow={syncNow} />
@@ -521,9 +525,9 @@ function nextSundayISO(): string {
   return d.toISOString().slice(0, 10)
 }
 
-function PlanView({ db, commit }: { db: DB; commit: (d: DB) => void }) {
-  const plan = db.plan ?? null
-  const [week, setWeek] = useState<string>(plan?.weekStart ?? nextSundayISO())
+function PlanView({ db, commit, week, setWeek }: { db: DB; commit: (d: DB) => void; week: string; setWeek: (w: string) => void }) {
+  const plan = db.plans?.[week] ?? null
+  const savedWeeks = Object.keys(db.plans ?? {}).sort()
   const [mapDay, setMapDay] = useState<number | null>(null)
   const trainees = useTrainees(db)
   const byDay = useMemo(() => {
@@ -540,9 +544,25 @@ function PlanView({ db, commit }: { db: DB; commit: (d: DB) => void }) {
     <section>
       <div className="view-head"><h2>לו״ז שבועי</h2></div>
       <div className="card pad">
-        <label className="lbl">שבוע שמתחיל ביום ראשון</label>
-        <input type="date" className="input" value={week} onChange={e => setWeek(e.target.value)} />
-        <button className="primary block" onClick={() => { const ws = sundayOfISO(week); setWeek(ws); commit({ ...db, plan: buildPlan(db, ws) }) }}>🧮 בנה לו״ז</button>
+        <div className="weeknav">
+          <button className="ghost sm" onClick={() => setWeek(sundayOfISO(addDaysISO(week, -7)))}>‹ קודם</button>
+          <div className="weeklabel">{fmtDateHe(week)}–{fmtDateHe(addDaysISO(week, 6))}</div>
+          <button className="ghost sm" onClick={() => setWeek(sundayOfISO(addDaysISO(week, 7)))}>הבא ›</button>
+        </div>
+        <input type="date" className="input" value={week} onChange={e => setWeek(sundayOfISO(e.target.value))} />
+        <button className="primary block" onClick={() => commit({ ...db, plans: { ...db.plans, [week]: buildPlan(db, week) } })}>
+          {plan ? '🔄 בנה מחדש' : '🧮 בנה לו״ז'}
+        </button>
+        {savedWeeks.length > 0 && (
+          <>
+            <label className="lbl">לו״זים שמורים</label>
+            <div className="daychips">
+              {savedWeeks.map(w => (
+                <button key={w} className={'daychip' + (w === week ? ' on' : '')} onClick={() => setWeek(w)}>{fmtDateHe(w)}</button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {plan && (
@@ -594,7 +614,7 @@ function PlanView({ db, commit }: { db: DB; commit: (d: DB) => void }) {
           ))}
         </>
       )}
-      {!plan && <Empty text="בחר שבוע ולחץ ״בנה לו״ז״" />}
+      {!plan && <Empty text="אין לו״ז שמור לשבוע זה — לחץ ״בנה לו״ז״" />}
     </section>
   )
 }
@@ -607,17 +627,17 @@ function Metric({ v, u, warn }: { v: string; u: string; warn?: boolean }) {
 //  Send
 // --------------------------------------------------------------------------- //
 
-function SendView({ db }: { db: DB }) {
-  const plan = db.plan ?? null
+function SendView({ db, week }: { db: DB; week: string }) {
+  const plan = db.plans?.[week] ?? null
   const trainees = useTrainees(db)
   const [sent, setSent] = useState<Record<string, boolean>>({})
-  if (!plan) return <section><div className="view-head"><h2>שליחה</h2></div><Empty text="בנה לו״ז תחילה" /></section>
+  if (!plan) return <section><div className="view-head"><h2>שליחה</h2></div><Empty text="אין לו״ז שמור לשבוע זה — בנה לו״ז תחילה" /></section>
 
   const items = [...plan.sessions].sort((a, b) => a.weekday - b.weekday || a.start - b.start)
   return (
     <section>
       <div className="view-head"><h2>שליחת וואטסאפ</h2></div>
-      <p className="hint">לחיצה פותחת את וואטסאפ עם ההודעה מוכנה — רק ללחוץ שלח. בלי עלות ובלי הגדרות.</p>
+      <p className="hint">שבוע {fmtDateHe(week)}–{fmtDateHe(addDaysISO(week, 6))} · לחיצה פותחת את וואטסאפ עם ההודעה מוכנה. בלי עלות.</p>
       <div className="list">
         {items.map((s, i) => {
           const tr = trainees.get(s.traineeId)

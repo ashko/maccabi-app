@@ -78,8 +78,17 @@ export interface DB {
   trainees: Trainee[]
   fixed: Fixed[]
   flexible: Flexible[]
-  plan?: Plan | null   // the last built weekly schedule — persisted & synced
-  updatedAt?: number   // epoch ms of last edit — used to reconcile cloud vs local
+  plans?: Record<string, Plan>  // schedule history, keyed by weekStart (ISO Sunday)
+  updatedAt?: number            // epoch ms of last edit — reconciles cloud vs local
+}
+
+// Bring older saves forward: a single `plan` becomes an entry in `plans`.
+export function migrateDB(db: DB): DB {
+  const legacy = (db as any).plan
+  if (legacy && !db.plans) db.plans = legacy.weekStart ? { [legacy.weekStart]: legacy } : {}
+  delete (db as any).plan
+  if (!db.plans) db.plans = {}
+  return db
 }
 
 export const WEEKDAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
@@ -110,6 +119,11 @@ export const weekdayOfISO = (iso: string): number => isoToDate(iso).getDay()  //
 export const sundayOfISO = (iso: string): string => {
   const dt = isoToDate(iso)
   dt.setDate(dt.getDate() - dt.getDay())
+  return dateToISO(dt)
+}
+export const addDaysISO = (iso: string, days: number): string => {
+  const dt = isoToDate(iso)
+  dt.setDate(dt.getDate() + days)
   return dateToISO(dt)
 }
 export const fmtDateHe = (iso: string): string => {

@@ -1,12 +1,12 @@
 // On-device persistence via localStorage — private, free, no backend.
-import { DB, seedDB } from './domain'
+import { DB, migrateDB, seedDB } from './domain'
 
 const KEY = 'ridecoach.db.v1'
 
 export function loadDB(): DB {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as DB
+    if (raw) return migrateDB(JSON.parse(raw) as DB)
   } catch {
     /* corrupt or unavailable — fall through to seed */
   }
