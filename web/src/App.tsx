@@ -28,7 +28,6 @@ const SYNC_LABEL: Record<SyncStatus, string> = {
 export default function App() {
   const [db, setDb] = useState<DB>(() => loadDB())
   const [view, setView] = useState<View>('people')
-  const [plan, setPlan] = useState<Plan | null>(null)
   const [installEvt, setInstallEvt] = useState<any>(null)
   const [sync, setSync] = useState<SyncStatus>(cloudEnabled() ? 'syncing' : 'off')
   const [syncErr, setSyncErr] = useState('')
@@ -110,8 +109,8 @@ export default function App() {
       <main className="content">
         {view === 'people' && <People db={db} commit={commit} />}
         {view === 'trainings' && <Trainings db={db} commit={commit} />}
-        {view === 'plan' && <PlanView db={db} plan={plan} setPlan={setPlan} />}
-        {view === 'send' && <SendView db={db} plan={plan} />}
+        {view === 'plan' && <PlanView db={db} commit={commit} />}
+        {view === 'send' && <SendView db={db} />}
         {view === 'settings' && (
           <Settings db={db} commit={commit} setDb={setDb}
             sync={sync} syncErr={syncErr} onConnect={connectCloud} onDisconnect={disconnectCloud} onSyncNow={syncNow} />
@@ -522,8 +521,9 @@ function nextSundayISO(): string {
   return d.toISOString().slice(0, 10)
 }
 
-function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (p: Plan) => void }) {
-  const [week, setWeek] = useState<string>(nextSundayISO())
+function PlanView({ db, commit }: { db: DB; commit: (d: DB) => void }) {
+  const plan = db.plan ?? null
+  const [week, setWeek] = useState<string>(plan?.weekStart ?? nextSundayISO())
   const [mapDay, setMapDay] = useState<number | null>(null)
   const trainees = useTrainees(db)
   const byDay = useMemo(() => {
@@ -542,7 +542,7 @@ function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (
       <div className="card pad">
         <label className="lbl">שבוע שמתחיל ביום ראשון</label>
         <input type="date" className="input" value={week} onChange={e => setWeek(e.target.value)} />
-        <button className="primary block" onClick={() => { const ws = sundayOfISO(week); setWeek(ws); setPlan(buildPlan(db, ws)) }}>🧮 בנה לו״ז</button>
+        <button className="primary block" onClick={() => { const ws = sundayOfISO(week); setWeek(ws); commit({ ...db, plan: buildPlan(db, ws) }) }}>🧮 בנה לו״ז</button>
       </div>
 
       {plan && (
@@ -607,7 +607,8 @@ function Metric({ v, u, warn }: { v: string; u: string; warn?: boolean }) {
 //  Send
 // --------------------------------------------------------------------------- //
 
-function SendView({ db, plan }: { db: DB; plan: Plan | null }) {
+function SendView({ db }: { db: DB }) {
+  const plan = db.plan ?? null
   const trainees = useTrainees(db)
   const [sent, setSent] = useState<Record<string, boolean>>({})
   if (!plan) return <section><div className="view-head"><h2>שליחה</h2></div><Empty text="בנה לו״ז תחילה" /></section>
@@ -619,7 +620,8 @@ function SendView({ db, plan }: { db: DB; plan: Plan | null }) {
       <p className="hint">לחיצה פותחת את וואטסאפ עם ההודעה מוכנה — רק ללחוץ שלח. בלי עלות ובלי הגדרות.</p>
       <div className="list">
         {items.map((s, i) => {
-          const tr = trainees.get(s.traineeId)!
+          const tr = trainees.get(s.traineeId)
+          if (!tr) return null
           const key = `${s.traineeId}-${s.weekday}-${s.start}`
           const msg = renderMessage(s, tr)
           return (

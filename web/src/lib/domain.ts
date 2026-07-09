@@ -78,6 +78,7 @@ export interface DB {
   trainees: Trainee[]
   fixed: Fixed[]
   flexible: Flexible[]
+  plan?: Plan | null   // the last built weekly schedule — persisted & synced
   updatedAt?: number   // epoch ms of last edit — used to reconcile cloud vs local
 }
 
