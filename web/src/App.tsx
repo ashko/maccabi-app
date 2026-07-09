@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AddressSearch from './components/AddressSearch'
 import {
-  CATEGORY_HE, Category, DB, Fixed, Flexible, Loc, Plan, Scheduled, Trainee,
-  WEEKDAYS_HE, WORK_DAYS, fmtHm, parseHm, uid,
+  CATEGORY_HE, Category, DB, Fixed, Flexible, Loc, Plan, Recurrence, Scheduled, Trainee,
+  WEEKDAYS_HE, WORK_DAYS, dateToISO, fmtDateHe, fmtHm, parseHm, sundayOfISO, uid, weekdayOfISO,
 } from './lib/domain'
 import { loadDB, resetDB, saveDB } from './lib/store'
 import { buildPlan } from './lib/scheduler'
@@ -271,8 +271,17 @@ function FixedList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; 
         {db.fixed.map(f => (
           <div className="row card" key={f.id}>
             <div className="grow">
-              <div className="row-title">{trainees.get(f.traineeId)?.name} · {f.label}</div>
-              <div className="row-sub">{catName(f.category)} · {WEEKDAYS_HE[f.weekday]} {fmtHm(f.start)} · {f.duration} דק׳{f.isRemote ? ' · אונליין' : ''}</div>
+              <div className="row-title">
+                {trainees.get(f.traineeId)?.name} · {f.label}
+                {f.recurrence === 'once'
+                  ? <span className="tag once">חד-פעמי</span>
+                  : <span className="tag weekly">כל שבוע</span>}
+              </div>
+              <div className="row-sub">
+                {catName(f.category)} · {f.recurrence === 'once' && f.date
+                  ? `${WEEKDAYS_HE[weekdayOfISO(f.date)]} ${fmtDateHe(f.date)}`
+                  : WEEKDAYS_HE[f.weekday]} {fmtHm(f.start)} · {f.duration} דק׳{f.isRemote ? ' · אונליין' : ''}
+              </div>
             </div>
             <button className="ghost sm" onClick={() => commit({ ...db, fixed: db.fixed.filter(x => x.id !== f.id) })}>🗑️</button>
           </div>
@@ -290,20 +299,36 @@ function FixedList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; 
 function FixedForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSave: (f: Fixed) => void }) {
   const [f, setF] = useState<Fixed>({
     id: uid(), traineeId: db.trainees[0].id, label: 'כוח', category: 'physical',
-    duration: 60, weekday: 0, start: parseHm('09:00'), isRemote: false,
+    duration: 60, weekday: 0, start: parseHm('09:00'), isRemote: false, recurrence: 'weekly',
   })
+  const [date, setDate] = useState<string>(dateToISO(new Date()))
+  const once = f.recurrence === 'once'
+  const save = () => onSave(once
+    ? { ...f, recurrence: 'once', date, weekday: weekdayOfISO(date) }
+    : { ...f, recurrence: 'weekly', date: undefined })
+
   return (
-    <Sheet title="אימון קבוע" onClose={onClose}>
+    <Sheet title="אימון קבוע (יום ושעה ידועים)" onClose={onClose}>
       <TraineePick db={db} value={f.traineeId} onChange={id => setF({ ...f, traineeId: id })} />
       <label className="lbl">שם האימון</label>
       <input className="input" value={f.label} onChange={e => setF({ ...f, label: e.target.value })} />
       <CategoryPick value={f.category} onChange={c => setF({ ...f, category: c })} />
+      <RecurrencePick value={f.recurrence!} onChange={r => setF({ ...f, recurrence: r })} />
       <div className="grid2">
         <div>
-          <label className="lbl">יום</label>
-          <select className="input" value={f.weekday} onChange={e => setF({ ...f, weekday: Number(e.target.value) })}>
-            {WORK_DAYS.map(d => <option key={d} value={d}>{WEEKDAYS_HE[d]}</option>)}
-          </select>
+          {once ? (
+            <>
+              <label className="lbl">תאריך</label>
+              <input type="date" className="input" value={date} onChange={e => setDate(e.target.value)} />
+            </>
+          ) : (
+            <>
+              <label className="lbl">יום</label>
+              <select className="input" value={f.weekday} onChange={e => setF({ ...f, weekday: Number(e.target.value) })}>
+                {WORK_DAYS.map(d => <option key={d} value={d}>{WEEKDAYS_HE[d]}</option>)}
+              </select>
+            </>
+          )}
         </div>
         <div>
           <label className="lbl">שעה</label>
@@ -312,8 +337,20 @@ function FixedForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSav
       </div>
       <DurationRemote duration={f.duration} isRemote={f.isRemote}
         onDur={d => setF({ ...f, duration: d })} onRemote={r => setF({ ...f, isRemote: r })} />
-      <div className="actions"><button className="primary grow" onClick={() => onSave(f)}>💾 הוסף</button></div>
+      <div className="actions"><button className="primary grow" onClick={save}>💾 הוסף</button></div>
     </Sheet>
+  )
+}
+
+function RecurrencePick({ value, onChange }: { value: Recurrence; onChange: (r: Recurrence) => void }) {
+  return (
+    <>
+      <label className="lbl">חזרתיות</label>
+      <div className="seg small">
+        <button className={value === 'weekly' ? 'on' : ''} onClick={() => onChange('weekly')}>חוזר כל שבוע</button>
+        <button className={value === 'once' ? 'on' : ''} onClick={() => onChange('once')}>חד-פעמי</button>
+      </div>
+    </>
   )
 }
 
@@ -326,7 +363,12 @@ function FlexList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; t
         {db.flexible.map(r => (
           <div className="row card" key={r.id}>
             <div className="grow">
-              <div className="row-title">{trainees.get(r.traineeId)?.name} · {r.label}</div>
+              <div className="row-title">
+                {trainees.get(r.traineeId)?.name} · {r.label}
+                {r.recurrence === 'once'
+                  ? <span className="tag once">חד-פעמי{r.targetWeek ? ` · ${fmtDateHe(r.targetWeek)}` : ''}</span>
+                  : <span className="tag weekly">כל שבוע</span>}
+              </div>
               <div className="row-sub">{catName(r.category)} · {r.duration} דק׳{r.isRemote ? ' · אונליין' : ''}</div>
               <div className="row-sub dim">{r.availability.map(w => `${WEEKDAYS_HE[w.weekday]} ${fmtHm(w.start)}-${fmtHm(w.end)}`).join(' · ')}</div>
             </div>
@@ -346,15 +388,19 @@ function FlexList({ db, commit, trainees }: { db: DB; commit: (d: DB) => void; t
 function FlexForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSave: (r: Flexible) => void }) {
   const [r, setR] = useState<Flexible>({
     id: uid(), traineeId: db.trainees[0].id, label: 'HIIT', category: 'physical',
-    duration: 45, isRemote: false, availability: [],
+    duration: 45, isRemote: false, availability: [], recurrence: 'weekly',
   })
   const [days, setDays] = useState<Record<number, { on: boolean; from: string; to: string }>>(
     Object.fromEntries(WORK_DAYS.map(d => [d, { on: false, from: '08:00', to: '13:00' }])))
+  const [targetWeek, setTargetWeek] = useState<string>(sundayOfISO(dateToISO(new Date())))
+  const once = r.recurrence === 'once'
 
   const build = () => {
     const availability = WORK_DAYS.filter(d => days[d].on)
       .map(d => ({ weekday: d, start: parseHm(days[d].from), end: parseHm(days[d].to) }))
-    if (availability.length) onSave({ ...r, availability })
+    if (availability.length) onSave(once
+      ? { ...r, availability, recurrence: 'once', targetWeek: sundayOfISO(targetWeek) }
+      : { ...r, availability, recurrence: 'weekly', targetWeek: undefined })
   }
   const anyDay = WORK_DAYS.some(d => days[d].on)
 
@@ -366,6 +412,13 @@ function FlexForm({ db, onClose, onSave }: { db: DB; onClose: () => void; onSave
       <CategoryPick value={r.category} onChange={c => setR({ ...r, category: c })} />
       <DurationRemote duration={r.duration} isRemote={r.isRemote}
         onDur={d => setR({ ...r, duration: d })} onRemote={x => setR({ ...r, isRemote: x })} />
+      <RecurrencePick value={r.recurrence!} onChange={x => setR({ ...r, recurrence: x })} />
+      {once && (
+        <>
+          <label className="lbl">לשבוע שמתחיל ביום ראשון</label>
+          <input type="date" className="input" value={targetWeek} onChange={e => setTargetWeek(e.target.value)} />
+        </>
+      )}
       <label className="lbl">חלונות זמינות</label>
       <div className="avail">
         {WORK_DAYS.map(d => (
@@ -460,7 +513,7 @@ function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (
       <div className="card pad">
         <label className="lbl">שבוע שמתחיל ביום ראשון</label>
         <input type="date" className="input" value={week} onChange={e => setWeek(e.target.value)} />
-        <button className="primary block" onClick={() => setPlan(buildPlan(db, week))}>🧮 בנה לו״ז</button>
+        <button className="primary block" onClick={() => { const ws = sundayOfISO(week); setWeek(ws); setPlan(buildPlan(db, ws)) }}>🧮 בנה לו״ז</button>
       </div>
 
       {plan && (

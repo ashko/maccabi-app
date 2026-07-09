@@ -105,6 +105,9 @@ button.row { background: var(--card); color: inherit; }
 .row-title { font-weight: 700; font-size: .98rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-sub { color: var(--ink-soft); font-size: .83rem; margin-top: 2px; }
 .row-sub.dim { color: var(--muted); font-size: .78rem; }
+.tag { font-size: .66rem; font-weight: 700; padding: 2px 7px; border-radius: 6px; margin-inline-start: 8px; vertical-align: middle; white-space: nowrap; }
+.tag.once { background: color-mix(in srgb, var(--energy) 22%, transparent); color: var(--warn, #C4791B); }
+.tag.weekly { background: color-mix(in srgb, var(--route) 16%, transparent); color: var(--route-deep); }
 .avatar {
   width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
   display: grid; place-items: center; font-weight: 800; color: #fff;

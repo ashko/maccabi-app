@@ -2,6 +2,7 @@
 // Time is minutes-from-midnight; weekday 0 = Sunday .. 5 = Friday (Israeli week).
 
 export type Category = 'physical' | 'nutrition'
+export type Recurrence = 'weekly' | 'once'  // repeats every week vs a single occurrence
 
 export interface Loc { name: string; lat: number; lng: number }
 
@@ -30,6 +31,8 @@ export interface Fixed {
   weekday: number
   start: number
   isRemote: boolean
+  recurrence?: Recurrence  // default 'weekly'; 'once' => only in the week containing `date`
+  date?: string            // ISO 'YYYY-MM-DD', required when recurrence === 'once'
 }
 
 export interface Window { weekday: number; start: number; end: number }
@@ -42,6 +45,8 @@ export interface Flexible {
   duration: number
   isRemote: boolean
   availability: Window[]
+  recurrence?: Recurrence  // default 'weekly'; 'once' => only in week `targetWeek`
+  targetWeek?: string      // ISO Sunday of the week it applies to, when 'once'
 }
 
 export interface Scheduled {
@@ -88,6 +93,24 @@ export const parseHm = (s: string) => {
 }
 export const uid = () =>
   (crypto?.randomUUID ? crypto.randomUUID() : 'id-' + Math.floor(performance.now() * 1000).toString(36))
+
+// ---- date helpers (local-time safe, no timezone drift) -------------------- //
+export const isoToDate = (iso: string): Date => {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+export const dateToISO = (dt: Date): string =>
+  `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+export const weekdayOfISO = (iso: string): number => isoToDate(iso).getDay()  // 0 = Sunday
+export const sundayOfISO = (iso: string): string => {
+  const dt = isoToDate(iso)
+  dt.setDate(dt.getDate() - dt.getDay())
+  return dateToISO(dt)
+}
+export const fmtDateHe = (iso: string): string => {
+  const dt = isoToDate(iso)
+  return `${dt.getDate()}/${dt.getMonth() + 1}`
+}
 
 // ---- seed roster (Tel Aviv) shown on first run ---------------------------- //
 

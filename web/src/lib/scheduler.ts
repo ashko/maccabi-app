@@ -3,7 +3,7 @@
 // Fixed sessions are anchors; flexible sessions are placed inside their windows
 // so as to add the least riding, respecting buffers, work hours and daily caps.
 
-import { DB, Loc, Plan, Scheduled } from './domain'
+import { DB, Loc, Plan, Scheduled, sundayOfISO, weekdayOfISO } from './domain'
 
 const DETOUR = 1.35 // real routes are longer than crow-flies
 
@@ -52,15 +52,20 @@ export function buildPlan(db: DB, weekStart: string): Plan {
     count[day] = (count[day] ?? 0) + 1
   }
 
-  // 1) fixed anchors
+  // 1) fixed anchors — weekly ones always apply; one-time only in their own week
   for (const f of fixed) {
     const tr = traineeById.get(f.traineeId)
     if (!tr) continue
-    if (fits(f.weekday, f.start, f.duration)) {
-      reserve(f.weekday, f.start, f.duration)
+    let weekday = f.weekday
+    if ((f.recurrence || 'weekly') === 'once') {
+      if (!f.date || sundayOfISO(f.date) !== weekStart) continue
+      weekday = weekdayOfISO(f.date)
+    }
+    if (fits(weekday, f.start, f.duration)) {
+      reserve(weekday, f.start, f.duration)
       sessions.push({
         traineeId: f.traineeId, label: f.label, category: f.category,
-        weekday: f.weekday, start: f.start, end: f.start + f.duration,
+        weekday, start: f.start, end: f.start + f.duration,
         isRemote: f.isRemote, loc: f.isRemote ? null : tr.location, order: 0, travelFromPrev: 0,
       })
     } else {
@@ -68,8 +73,10 @@ export function buildPlan(db: DB, weekStart: string): Plan {
     }
   }
 
-  // 2) flexible — tightest (fewest windows) first
-  const ordered = [...flexible].sort((a, b) => a.availability.length - b.availability.length)
+  // 2) flexible — one-time only in their target week; tightest (fewest windows) first
+  const ordered = [...flexible]
+    .filter(r => (r.recurrence || 'weekly') !== 'once' || r.targetWeek === weekStart)
+    .sort((a, b) => a.availability.length - b.availability.length)
   for (const r of ordered) {
     const tr = traineeById.get(r.traineeId)
     if (!tr) continue
