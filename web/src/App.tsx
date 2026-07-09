@@ -548,9 +548,9 @@ function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (
       {plan && (
         <>
           <div className="metrics">
+            <Metric v={plan.totalKm.toFixed(1)} u="ק״מ בשבוע" />
             <Metric v={`${plan.totalRide}`} u="דק׳ רכיבה" />
             <Metric v={`${plan.sessions.length}`} u="אימונים" />
-            <Metric v={`${plan.unscheduled.length}`} u="קונפליקטים" warn={plan.unscheduled.length > 0} />
           </div>
 
           {plan.unscheduled.length > 0 && (
@@ -576,7 +576,10 @@ function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (
 
           {activeDays.map(d => (
             <div className="day card" key={d}>
-              <div className="day-head">יום {WEEKDAYS_HE[d]}</div>
+              <div className="day-head">
+                <span>יום {WEEKDAYS_HE[d]}</span>
+                <span className="day-total">🚲 {(plan.dayKm[d] || 0).toFixed(1)} ק״מ · {Math.round(plan.dayMin[d] || 0)} דק׳</span>
+              </div>
               {byDay[d].map((s, i) => (
                 <div className="slot" key={i}>
                   <div className="slot-time">{fmtHm(s.start)}<span>{fmtHm(s.end)}</span></div>
@@ -584,7 +587,7 @@ function PlanView({ db, plan, setPlan }: { db: DB; plan: Plan | null; setPlan: (
                     <div className="row-title">{trainees.get(s.traineeId)?.name} · {s.label}</div>
                     <div className="row-sub">{catName(s.category)} · {s.isRemote ? 'אונליין 💻' : s.loc?.name}</div>
                   </div>
-                  <div className="ride">{s.isRemote ? '💻' : `🚲 ${s.travelFromPrev}′`}</div>
+                  <div className="ride">{s.isRemote ? '💻' : `🚲 ${s.travelKm.toFixed(1)} ק״מ`}</div>
                 </div>
               ))}
             </div>

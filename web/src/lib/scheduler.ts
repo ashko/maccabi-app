@@ -17,8 +17,14 @@ function haversineKm(a: Loc, b: Loc): number {
   return 2 * R * Math.asin(Math.sqrt(s))
 }
 
+function roadKm(a: Loc, b: Loc): number {
+  return haversineKm(a, b) * DETOUR
+}
+function minutesFromKm(km: number, speedKmh: number): number {
+  return Math.max(1, Math.round(km / speedKmh * 60))
+}
 function rideMinutes(a: Loc, b: Loc, speedKmh: number): number {
-  return Math.max(1, Math.round((haversineKm(a, b) * DETOUR) / speedKmh * 60))
+  return minutesFromKm(roadKm(a, b), speedKmh)
 }
 
 interface Busy { start: number; end: number }
@@ -66,7 +72,7 @@ export function buildPlan(db: DB, weekStart: string): Plan {
       sessions.push({
         traineeId: f.traineeId, label: f.label, category: f.category,
         weekday, start: f.start, end: f.start + f.duration,
-        isRemote: f.isRemote, loc: f.isRemote ? null : tr.location, order: 0, travelFromPrev: 0,
+        isRemote: f.isRemote, loc: f.isRemote ? null : tr.location, order: 0, travelFromPrev: 0, travelKm: 0,
       })
     } else {
       unscheduled.push(`אימון קבוע לא שובץ (קונפליקט): ${tr.name} — ${f.label}`)
@@ -103,30 +109,39 @@ export function buildPlan(db: DB, weekStart: string): Plan {
       sessions.push({
         traineeId: r.traineeId, label: r.label, category: r.category,
         weekday: best.day, start: best.start, end: best.start + r.duration,
-        isRemote: r.isRemote, loc: r.isRemote ? null : tr.location, order: 0, travelFromPrev: 0,
+        isRemote: r.isRemote, loc: r.isRemote ? null : tr.location, order: 0, travelFromPrev: 0, travelKm: 0,
       })
     } else {
       unscheduled.push(`אימון משתנה לא שובץ (אין חלון פנוי): ${tr.name} — ${r.label}`)
     }
   }
 
-  // 3) per-day route metrics
-  let totalRide = 0
+  // 3) per-day route metrics (distance in km + time in minutes, incl. ride home)
+  let totalRide = 0, totalKm = 0
+  const dayKm: Record<number, number> = {}
+  const dayMin: Record<number, number> = {}
   const byDay: Record<number, Scheduled[]> = {}
   for (const s of sessions) (byDay[s.weekday] ||= []).push(s)
   for (const day of Object.keys(byDay).map(Number)) {
     const list = byDay[day].sort((a, b) => a.start - b.start)
+    dayKm[day] = 0; dayMin[day] = 0
     let prev: Loc = trainer.home
     list.forEach((s, i) => {
       s.order = i + 1
-      if (s.isRemote || !s.loc) { s.travelFromPrev = 0; return }
-      const leg = rideMinutes(prev, s.loc, speed)
-      s.travelFromPrev = leg
-      totalRide += leg
+      if (s.isRemote || !s.loc) { s.travelFromPrev = 0; s.travelKm = 0; return }
+      const km = roadKm(prev, s.loc)
+      const min = minutesFromKm(km, speed)
+      s.travelKm = km
+      s.travelFromPrev = min
+      totalKm += km; totalRide += min; dayKm[day] += km; dayMin[day] += min
       prev = s.loc
     })
-    if (prev !== trainer.home) totalRide += rideMinutes(prev, trainer.home, speed)
+    if (prev !== trainer.home) {
+      const km = roadKm(prev, trainer.home)
+      const min = minutesFromKm(km, speed)
+      totalKm += km; totalRide += min; dayKm[day] += km; dayMin[day] += min
+    }
   }
 
-  return { weekStart, sessions, unscheduled, totalRide }
+  return { weekStart, sessions, unscheduled, totalRide: Math.round(totalRide), totalKm, dayKm, dayMin }
 }

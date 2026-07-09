@@ -59,14 +59,18 @@ export interface Scheduled {
   isRemote: boolean
   loc: Loc | null
   order: number
-  travelFromPrev: number
+  travelFromPrev: number   // minutes ridden to reach this stop
+  travelKm: number         // km ridden to reach this stop (from home / previous stop)
 }
 
 export interface Plan {
   weekStart: string
   sessions: Scheduled[]
   unscheduled: string[]
-  totalRide: number
+  totalRide: number                 // total minutes for the week
+  totalKm: number                   // total km for the week
+  dayKm: Record<number, number>     // km per weekday (incl. ride home)
+  dayMin: Record<number, number>    // minutes per weekday (incl. ride home)
 }
 
 export interface DB {
